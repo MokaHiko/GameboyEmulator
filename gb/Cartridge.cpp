@@ -164,3 +164,14 @@ std::string Cartridge::CartridgeTypeName() const
 
     return "Uknown";
 }
+
+
+uint8_t Cartridge::Read(uint16_t address) const
+{
+    return _rom_data[address];
+}
+
+void Cartridge::Write(uint16_t address, uint8_t value)
+{
+    _rom_data[address] = value;
+}

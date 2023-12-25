@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>
+#include "Common.h"
 #include <string>
 #include <vector>
 
@@ -31,6 +31,9 @@ public:
     bool LoadCartridge(const std::string& rom_path);
     std::string LicenseName() const;
     std::string CartridgeTypeName() const;
+
+    uint8_t Read(uint16_t address) const;
+    void Write(uint16_t address, uint8_t value);
 private:
     std::string _file_name;
     uint32_t _rom_size;

@@ -3,6 +3,6 @@
 
 int main(int, char**){
     Gameboy* gb = new Gameboy();
-    gb->Run("roms/pokemon_red.gb");
+    gb->Run("roms/tetris.gb");
     delete gb;
 }

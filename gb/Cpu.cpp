@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+// Swaps the lo and hi bit of n
 uint16_t Reverse(uint16_t n)
 {
     return ((n & 0xFF00) >> 8) | ((n & 0x00FF) << 8);
@@ -74,6 +75,28 @@ uint16_t Cpu::ReadRegister(RegisterType type)
 
 void Cpu::SetRegister(RegisterType type, uint16_t value)
 {
+    switch(type)
+    {
+        case RT_A: _a = value & 0xFF; break;
+        case RT_F: _f = value & 0xFF; break;
+        case RT_B: _b = value & 0xFF; break;
+        case RT_C: _c = value & 0xFF; break;
+        case RT_D: _d = value & 0xFF; break;
+        case RT_E: _e = value & 0xFF; break;
+        case RT_H: _h = value & 0xFF; break;
+        case RT_L: _l = value & 0xFF; break;
+
+        // TODO: Figure out why reverse
+        case RT_AF: *(uint16_t*)(&_a) = Reverse(value); break;
+        case RT_BC: *(uint16_t*)(&_b) = Reverse(value); break;
+        case RT_DE: *(uint16_t*)(&_d) = Reverse(value); break;
+        case RT_HL: *(uint16_t*)(&_h) = Reverse(value); break;
+
+        case RT_SP: _sp = value; break;
+        case RT_PC: _pc = value; break;
+
+        case RT_NONE: printf("\t-Uknown register type.\n"); break;
+    };
 }
 
 void Cpu::SetFlags(char z, char n, char h, char c)
@@ -124,12 +147,21 @@ void Cpu::FetchData()
     }
     break;
 
+    // Register Addressing Mode 
     case AM_R:
     {
         _fetched_data = ReadRegister(_current_instruction->reg1_type);
     }
     break;
 
+    // 2nd Register Addressing Mode 
+    case AM_R_R:
+    {
+        _fetched_data = ReadRegister(_current_instruction->reg2_type);
+    }
+    break;
+
+    // Immediate Mode Byte
     case AM_R_D8:
     {
         _fetched_data = _gb->GetBus().Read(_pc++);
@@ -137,7 +169,9 @@ void Cpu::FetchData()
     }
     break;
 
+    // Immediate Mode (Extended) Byte
     case AM_D16:
+    case AM_R_D16:
     {
         uint16_t lo = _gb->GetBus().Read(_pc++);
         _gb->Cycle(1);
@@ -148,6 +182,135 @@ void Cpu::FetchData()
         _fetched_data = hi | lo;
     }
     break;
+
+    // Register Indirect Addressing Mode (Loading register to memory region)
+    case AM_MR_R:
+    {
+        _fetched_data = ReadRegister(_current_instruction->reg2_type);
+        _memory_dest = ReadRegister(_current_instruction->reg1_type);
+        _dest_is_memory = true;
+
+        // Only write to most significant byte on c register
+        if(_current_instruction->reg1_type == RT_C)
+        {
+            _memory_dest |= 0xFF00;
+        }
+    }
+    break;
+
+    case AM_R_MR:
+    {
+        uint16_t addr = ReadRegister(_current_instruction->reg2_type);
+
+        // Only write to most significant byte on c register
+        if(_current_instruction->reg1_type == RT_C)
+        {
+            _memory_dest |= 0xFF00;
+        }
+
+        _fetched_data = _gb->GetBus().Read(addr);
+        _gb->Cycle(1);
+    }
+    break;
+
+    case AM_R_HLD:
+    {
+        _fetched_data = _gb->GetBus().Read(ReadRegister(_current_instruction->reg2_type));
+        _gb->Cycle(1);
+
+        SetRegister(RegisterType::RT_HL, ReadRegister(RT_HL) - 1);
+    }
+    break;
+
+    case AM_HLI_R:
+    {
+        _fetched_data = ReadRegister(_current_instruction->reg2_type);
+        _memory_dest =  ReadRegister(_current_instruction->reg1_type);
+        _dest_is_memory = true;
+        SetRegister(RegisterType::RT_HL, ReadRegister(RT_HL) + 1);
+    }
+    break;
+
+    case AM_HLD_R:
+    {
+        _fetched_data = ReadRegister(_current_instruction->reg2_type);
+        _memory_dest =  ReadRegister(_current_instruction->reg1_type);
+        _dest_is_memory = true;
+        SetRegister(RegisterType::RT_HL, ReadRegister(RT_HL) - 1);
+    }
+    break;
+
+    case AM_R_A8:
+    {
+        _fetched_data = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1); 
+    }break;
+
+    case AM_A8_R:
+    {
+        _memory_dest = _gb->GetBus().Read(_pc++) | 0xFF00;
+        _dest_is_memory = true;
+        _gb->Cycle(1);
+    }break;
+
+    case AM_HL_SPR:
+    {
+        _fetched_data = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1);
+    }break;
+
+    case AM_D8:
+    {
+        _fetched_data = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1);
+    }break;
+
+    case AM_A16_R:
+    case AM_D16_R:
+    {
+        uint16_t lo = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1);
+
+        uint16_t hi = _gb->GetBus().Read(_pc++) << 8;
+        _gb->Cycle(1);
+
+        _memory_dest = hi | lo;
+        _dest_is_memory = true;
+
+        _fetched_data = ReadRegister(_current_instruction->reg2_type);
+    }break;
+
+    case AM_MR_D8:
+    {
+        _fetched_data = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1);
+
+        _memory_dest = ReadRegister(_current_instruction->reg1_type);
+        _memory_dest = true;
+    } break;
+
+    case AM_MR:
+    {
+        _memory_dest = ReadRegister(_current_instruction->reg1_type);
+        _memory_dest = true;
+
+        _fetched_data = _gb->GetBus().Read(_memory_dest);
+        _gb->Cycle(1);
+    } break;
+
+
+    case AM_R_A16 : 
+    {
+        uint16_t lo = _gb->GetBus().Read(_pc++);
+        _gb->Cycle(1);
+
+        uint16_t hi = _gb->GetBus().Read(_pc++) << 8;
+        _gb->Cycle(1);
+
+        uint16_t adrr = hi | lo;    
+        _fetched_data = _gb->GetBus().Read(adrr);
+    }break;
+
 
     default:
     {
@@ -203,7 +366,32 @@ void Cpu::PROC_NOP()
 
 void Cpu::PROC_LD()
 {
-    // TODO:
+    if(_dest_is_memory)
+    {
+        if(_current_instruction->reg2_type >= RT_AF)
+        {
+            _gb->GetBus().Write16(_memory_dest, _fetched_data);
+            _gb->Cycle(1);
+        }
+        else
+        {
+            _gb->GetBus().Write(_memory_dest, _fetched_data);
+        }
+    }
+
+    // TODO: Special instruction Case? 
+    if(_current_instruction->address_mode == AM_HL_SPR)
+    {
+        uint8_t h_flag = (ReadRegister(_current_instruction->reg2_type)) & 0XF + 
+                    _fetched_data & 0XF >= 0x10;
+        uint8_t c_flag = (ReadRegister(_current_instruction->reg1_type)) & 0XFF + 
+                    _fetched_data & 0XFF >= 0x100;
+
+        SetFlags(0, 0, h_flag, c_flag);
+        SetRegister(_current_instruction->reg1_type, ReadRegister(_current_instruction->reg2_type) + (char)_fetched_data);
+    }
+
+    SetRegister(_current_instruction->reg1_type, _fetched_data);
 }
 
 void Cpu::PROC_DI()
@@ -238,8 +426,9 @@ bool Cpu::Step()
     FetchInstruction();
     FetchData();
 
-    printf("PC: %04X | %3s (%02X %02X %02X) | A: %02X F: %02X B: %02X C: %02X D: %02X E: %02X\n",
+    printf("PC: %04X SP: %04X| %3s (%02X %02X %02X) | A: %02X F: %02X B: %02X C: %02X D: %02X E: %02X\n",
            pc,
+           _sp,
 
            Instruction::StringLookUp[_current_instruction->type],
            _current_opcode,

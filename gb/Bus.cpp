@@ -30,6 +30,14 @@ uint8_t Bus::Read(uint16_t address)
     NO_IMPL
 }
 
+uint16_t Bus::Read16(uint16_t address)
+{
+    uint16_t lo = Read(address);
+    int16_t hi = Read(address + 1) << 8;
+
+    return hi | lo;
+}
+
 void Bus::Write(uint16_t address, uint8_t value)
 {
     if(address < 0x8000)
@@ -38,4 +46,10 @@ void Bus::Write(uint16_t address, uint8_t value)
     }
 
     NO_IMPL
+}
+
+void Bus::Write16(uint16_t address, uint16_t value)
+{
+    Write(address + 1, (value >> 8) & 0XFF);
+    Write(address, value  & 0XFF);
 }

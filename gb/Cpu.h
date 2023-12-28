@@ -50,14 +50,10 @@ private:
 
     std::vector<Cpu::IN_PROC> _lookup;
 private:
-    uint8_t _a;
-    uint8_t _f;
-    uint8_t _b;
-    uint8_t _c;
-    uint8_t _d;
-    uint8_t _e;
-    uint8_t _h;
-    uint8_t _l;
+    uint8_t _a, _f;
+    uint8_t _b, _c;
+    uint8_t _d, _e;
+    uint8_t _h, _l;
 
     uint16_t _sp;
     uint16_t _pc;

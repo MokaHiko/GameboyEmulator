@@ -26,8 +26,49 @@ uint8_t Bus::Read(uint16_t address)
     {
         return _gb->GetCartridge().Read(address);
     }
+    else if(address < 0xA000)
+    {
+        // Char/Map data
+        NO_IMPL;
+    }
+    else if(address < 0xC000)
+    {
+        // Cartridge Ram
+        return _gb->GetCartridge().Read(address);
+    }
+    else if(address < 0xE000)
+    {
+        // WRAM (Working Ram)
+        return _gb->GetRam().WRead(address);
+    }
+    else if(address < 0xFE00)
+    {
+        // Reserved echo ram unusable
+        return 0;
+    }
+    else if(address < 0xFEA0)
+    {
+        // TODO: Add PPU memory access
+        NO_IMPL;
+    }
+    else if(address < 0xFF00)
+    {
+        // Reserved unusable... 
+        return 0;
+    }
+    else if(address < 0xFF80)
+    {
+        // TODO: Io registers
+        NO_IMPL;
+    }
+    else if(address == 0xFFFF)
+    {
+        // Cpu enable interrupt register  
+        _gb->GetCpu().GetIERegister();
+    }
 
-    NO_IMPL
+    // Return high ram read / zero page 
+    return _gb->GetRam().HRead(address);
 }
 
 uint16_t Bus::Read16(uint16_t address)
@@ -44,7 +85,47 @@ void Bus::Write(uint16_t address, uint8_t value)
     {
         return _gb->GetCartridge().Write(address, value);
     }
+    else if(address < 0xA000)
+    {
+        // Char/Map data
+        NO_IMPL;
+    }
+    else if(address < 0xC000)
+    {
+        // Cartridge Ram
+        _gb->GetCartridge().Write(address, value);
+    }
+    else if(address < 0xE000)
+    {
+        // WRAM (Working Ram)
+        _gb->GetRam().WWrite(address, value);
+    }
+    else if(address < 0xFE00)
+    {
+        // Reserved echo ram unusable
+    }
+    else if(address < 0xFEA0)
+    {
+        // TODO: Add PPU memory access
+        NO_IMPL;
+    }
+    else if(address < 0xFF00)
+    {
+        // Reserved unusable... 
+    }
+    else if(address < 0xFF80)
+    {
+        // TODO: Io registers
+        NO_IMPL;
+    }
+    else if(address == 0xFFFF)
+    {
+        //  Cpu enable interrupt register  
+        _gb->GetCpu().SetIERegister(value);
+    }
 
+    // Return high ram  write/ zero page 
+    _gb->GetRam().HWrite(address, value);
     NO_IMPL
 }
 

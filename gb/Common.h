@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdio.h>
- #include <cstdint>
+#include <cstdint>
+#include <cassert>
 
  #define NO_IMPL {fprintf(stderr, "NO IMPLEMENTATION!"); exit(-5); }
 

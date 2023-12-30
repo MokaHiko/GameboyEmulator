@@ -16,6 +16,8 @@ add_executable(GBEmu main.cpp
                      gb/Instruction.cpp
                      gb/Cpu.h 
                      gb/Cpu.cpp 
+                     gb/Ram.h 
+                     gb/Ram.cpp
                      gb/Ppu.h
                      gb/Ppu.cpp 
                      gb/Cartridge.h

@@ -19,6 +19,7 @@ void Cpu::Init(Gameboy *gb)
     _lookup[IN_NOP] = &Cpu::PROC_NOP;
     _lookup[IN_DI] = &Cpu::PROC_DI;
     _lookup[IN_LD] = &Cpu::PROC_LD;
+    _lookup[IN_LDH] = &Cpu::PROC_LDH;
     _lookup[IN_JP] = &Cpu::PROC_JP;
     _lookup[IN_JR] = &Cpu::PROC_JR;
     _lookup[IN_XOR] = &Cpu::PROC_XOR;
@@ -419,6 +420,19 @@ void Cpu::PROC_XOR()
     SetFlags(_a == 0, -1, -1, -1);
 }
 
+void Cpu::PROC_LDH()
+{
+    // High ram read/write
+    if(_current_instruction->reg1_type == RegisterType::RT_A)
+    {
+        SetRegister(RegisterType::RT_A, _gb->GetBus().Read(_fetched_data) | 0xFF00);
+    }
+    else if(_current_instruction->reg2_type == RegisterType::RT_A)
+    {
+        _gb->GetBus().Write(_fetched_data | 0xFF00, ReadRegister(RegisterType::RT_A));
+    }
+}
+
 bool Cpu::Step()
 {
     uint16_t pc = _pc;
@@ -426,7 +440,7 @@ bool Cpu::Step()
     FetchInstruction();
     FetchData();
 
-    printf("PC: %04X SP: %04X| %3s (%02X %02X %02X) | A: %02X F: %02X B: %02X C: %02X D: %02X E: %02X\n",
+    printf("PC: %04X SP: %04X| %3s (%02X %02X %02X) | AF: %02X%02X BC: %02X%02X DE: %02X%02X HL: %02X%02X\n",
            pc,
            _sp,
 
@@ -435,12 +449,10 @@ bool Cpu::Step()
            _gb->GetBus().Read(pc + 1),
            _gb->GetBus().Read(pc + 2),
 
-           _a,
-           _f,
-           _b,
-           _c,
-           _d,
-           _e
+           _a,_f,
+           _b,_c,
+           _d,_e,
+           _h,_l
             );
 
     Execute();

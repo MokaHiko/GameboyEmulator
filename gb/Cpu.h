@@ -19,6 +19,9 @@ public:
     uint16_t ReadRegister(RegisterType type);
     void SetRegister(RegisterType type, uint16_t value);
 
+    void SetIERegister(uint8_t value) {_ie = value;}
+    uint8_t GetIERegister() {return _ie;}
+
     void SetFlags(char z = -1, char n = -1, char h = -1, char c = -1);
 private:
     void FetchInstruction();
@@ -34,7 +37,6 @@ private:
 
     bool _dest_is_memory;
     bool _int_master_enabled;
-
 private:
     // Flags
     int Z() const {return BIT(_f, 7);}
@@ -47,6 +49,7 @@ private:
 
     void PROC_NOP(); void PROC_LD(); void PROC_DI();
     void PROC_JP();  void PROC_JR(); void PROC_XOR();
+    void PROC_LDH();
 
     std::vector<Cpu::IN_PROC> _lookup;
 private:
@@ -57,6 +60,8 @@ private:
 
     uint16_t _sp;
     uint16_t _pc;
+
+    uint8_t _ie;
 private:
     Gameboy* _gb;
 };

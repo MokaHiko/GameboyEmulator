@@ -123,10 +123,11 @@ void Bus::Write(uint16_t address, uint8_t value)
         //  Cpu enable interrupt register  
         _gb->GetCpu().SetIERegister(value);
     }
-
-    // Return high ram  write/ zero page 
-    _gb->GetRam().HWrite(address, value);
-    NO_IMPL
+    else
+    {
+        // Return high ram  write/ zero page 
+        _gb->GetRam().HWrite(address, value);
+    }
 }
 
 void Bus::Write16(uint16_t address, uint16_t value)

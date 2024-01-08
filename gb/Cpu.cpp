@@ -9,7 +9,7 @@ uint16_t Reverse(uint16_t n)
     return ((n & 0xFF00) >> 8) | ((n & 0x00FF) << 8);
 }
 
-void Cpu::Init(Gameboy *gb)
+void Cpu::Init(Gameboy* gb)
 {
     _gb = gb;
 
@@ -22,14 +22,21 @@ void Cpu::Init(Gameboy *gb)
     _lookup[IN_LDH] = &Cpu::PROC_LDH;
     _lookup[IN_JP] = &Cpu::PROC_JP;
     _lookup[IN_JR] = &Cpu::PROC_JR;
+    _lookup[IN_CALL] = &Cpu::PROC_CALL;
+    _lookup[IN_RET] = &Cpu::PROC_RET;
+    _lookup[IN_RETI] = &Cpu::PROC_RETI;
+    _lookup[IN_RST] = &Cpu::PROC_RST;
     _lookup[IN_XOR] = &Cpu::PROC_XOR;
+    _lookup[IN_POP] = &Cpu::PROC_POP;
+    _lookup[IN_PUSH] = &Cpu::PROC_PUSH;
 
     // Reset
     _pc = 0x100;
     _a = 0x01;
+    _sp = 0xDFFF;
 }
 
-const Instruction &Cpu::CurrentInstruction()
+const Instruction& Cpu::CurrentInstruction()
 {
     return *_current_instruction;
 }
@@ -76,27 +83,27 @@ uint16_t Cpu::ReadRegister(RegisterType type)
 
 void Cpu::SetRegister(RegisterType type, uint16_t value)
 {
-    switch(type)
+    switch (type)
     {
-        case RT_A: _a = value & 0xFF; break;
-        case RT_F: _f = value & 0xFF; break;
-        case RT_B: _b = value & 0xFF; break;
-        case RT_C: _c = value & 0xFF; break;
-        case RT_D: _d = value & 0xFF; break;
-        case RT_E: _e = value & 0xFF; break;
-        case RT_H: _h = value & 0xFF; break;
-        case RT_L: _l = value & 0xFF; break;
+    case RT_A: _a = value & 0xFF; break;
+    case RT_F: _f = value & 0xFF; break;
+    case RT_B: _b = value & 0xFF; break;
+    case RT_C: _c = value & 0xFF; break;
+    case RT_D: _d = value & 0xFF; break;
+    case RT_E: _e = value & 0xFF; break;
+    case RT_H: _h = value & 0xFF; break;
+    case RT_L: _l = value & 0xFF; break;
 
         // TODO: Figure out why reverse
-        case RT_AF: *(uint16_t*)(&_a) = Reverse(value); break;
-        case RT_BC: *(uint16_t*)(&_b) = Reverse(value); break;
-        case RT_DE: *(uint16_t*)(&_d) = Reverse(value); break;
-        case RT_HL: *(uint16_t*)(&_h) = Reverse(value); break;
+    case RT_AF: *(uint16_t*)(&_a) = Reverse(value); break;
+    case RT_BC: *(uint16_t*)(&_b) = Reverse(value); break;
+    case RT_DE: *(uint16_t*)(&_d) = Reverse(value); break;
+    case RT_HL: *(uint16_t*)(&_h) = Reverse(value); break;
 
-        case RT_SP: _sp = value; break;
-        case RT_PC: _pc = value; break;
+    case RT_SP: _sp = value; break;
+    case RT_PC: _pc = value; break;
 
-        case RT_NONE: printf("\t-Uknown register type.\n"); break;
+    case RT_NONE: printf("\t-Uknown register type.\n"); break;
     };
 }
 
@@ -121,6 +128,32 @@ void Cpu::SetFlags(char z, char n, char h, char c)
     {
         BIT_SET(_f, 4, c);
     }
+}
+
+void Cpu::Push(uint8_t data)
+{
+    _sp--;
+    _gb->GetBus().Write(_sp, data);
+}
+
+void Cpu::Push16(uint16_t data)
+{
+    Push((data >> 8) & 0xFF);
+    Push(data & 0xFF);
+}
+
+uint8_t Cpu::Pop()
+{
+    uint8_t val = _gb->GetBus().Read(_sp++);
+    return val;
+}
+
+uint8_t Cpu::Pop16()
+{
+    uint16_t hi = Pop() << 8;
+    uint16_t lo = Pop();
+
+    return hi | lo;
 }
 
 void Cpu::FetchInstruction()
@@ -192,7 +225,7 @@ void Cpu::FetchData()
         _dest_is_memory = true;
 
         // Only write to most significant byte on c register
-        if(_current_instruction->reg1_type == RT_C)
+        if (_current_instruction->reg1_type == RT_C)
         {
             _memory_dest |= 0xFF00;
         }
@@ -204,7 +237,7 @@ void Cpu::FetchData()
         uint16_t addr = ReadRegister(_current_instruction->reg2_type);
 
         // Only write to most significant byte on c register
-        if(_current_instruction->reg1_type == RT_C)
+        if (_current_instruction->reg1_type == RT_C)
         {
             _memory_dest |= 0xFF00;
         }
@@ -226,7 +259,7 @@ void Cpu::FetchData()
     case AM_HLI_R:
     {
         _fetched_data = ReadRegister(_current_instruction->reg2_type);
-        _memory_dest =  ReadRegister(_current_instruction->reg1_type);
+        _memory_dest = ReadRegister(_current_instruction->reg1_type);
         _dest_is_memory = true;
         SetRegister(RegisterType::RT_HL, ReadRegister(RT_HL) + 1);
     }
@@ -235,7 +268,7 @@ void Cpu::FetchData()
     case AM_HLD_R:
     {
         _fetched_data = ReadRegister(_current_instruction->reg2_type);
-        _memory_dest =  ReadRegister(_current_instruction->reg1_type);
+        _memory_dest = ReadRegister(_current_instruction->reg1_type);
         _dest_is_memory = true;
         SetRegister(RegisterType::RT_HL, ReadRegister(RT_HL) - 1);
     }
@@ -244,7 +277,7 @@ void Cpu::FetchData()
     case AM_R_A8:
     {
         _fetched_data = _gb->GetBus().Read(_pc++);
-        _gb->Cycle(1); 
+        _gb->Cycle(1);
     }break;
 
     case AM_A8_R:
@@ -300,7 +333,7 @@ void Cpu::FetchData()
     } break;
 
 
-    case AM_R_A16 : 
+    case AM_R_A16:
     {
         uint16_t lo = _gb->GetBus().Read(_pc++);
         _gb->Cycle(1);
@@ -308,7 +341,7 @@ void Cpu::FetchData()
         uint16_t hi = _gb->GetBus().Read(_pc++) << 8;
         _gb->Cycle(1);
 
-        uint16_t adrr = hi | lo;    
+        uint16_t adrr = hi | lo;
         _fetched_data = _gb->GetBus().Read(adrr);
     }break;
 
@@ -356,10 +389,21 @@ bool Cpu::CheckCondition() const
     }
 }
 
-void Cpu::PROC_NON()
+void Cpu::GOTO(uint16_t address, bool push_pc)
 {
-    printf("Invalid Instruction!\n");
+    if (CheckCondition())
+    {
+        if (push_pc)
+        {
+            Push16(push_pc);
+            _gb->Cycle(2);
+        }
+        _pc = address;
+        _gb->Cycle(1);
+    }
 }
+
+void Cpu::PROC_NON() { printf("Invalid Instruction!\n"); }
 
 void Cpu::PROC_NOP()
 {
@@ -367,9 +411,9 @@ void Cpu::PROC_NOP()
 
 void Cpu::PROC_LD()
 {
-    if(_dest_is_memory)
+    if (_dest_is_memory)
     {
-        if(_current_instruction->reg2_type >= RT_AF)
+        if (_current_instruction->reg2_type >= RT_AF)
         {
             _gb->GetBus().Write16(_memory_dest, _fetched_data);
             _gb->Cycle(1);
@@ -378,18 +422,22 @@ void Cpu::PROC_LD()
         {
             _gb->GetBus().Write(_memory_dest, _fetched_data);
         }
+
+        return;
     }
 
     // TODO: Special instruction Case? 
-    if(_current_instruction->address_mode == AM_HL_SPR)
+    if (_current_instruction->address_mode == AM_HL_SPR)
     {
-        uint8_t h_flag = (ReadRegister(_current_instruction->reg2_type)) & 0XF + 
-                    _fetched_data & 0XF >= 0x10;
-        uint8_t c_flag = (ReadRegister(_current_instruction->reg1_type)) & 0XFF + 
-                    _fetched_data & 0XFF >= 0x100;
+        uint8_t h_flag = (ReadRegister(_current_instruction->reg2_type)) & 0XF +
+            _fetched_data & 0XF >= 0x10;
+        uint8_t c_flag = (ReadRegister(_current_instruction->reg1_type)) & 0XFF +
+            _fetched_data & 0XFF >= 0x100;
 
         SetFlags(0, 0, h_flag, c_flag);
         SetRegister(_current_instruction->reg1_type, ReadRegister(_current_instruction->reg2_type) + (char)_fetched_data);
+
+        return;
     }
 
     SetRegister(_current_instruction->reg1_type, _fetched_data);
@@ -402,16 +450,14 @@ void Cpu::PROC_DI()
 
 void Cpu::PROC_JP()
 {
-    if (CheckCondition())
-    {
-        _pc = _fetched_data;
-        _gb->Cycle(1);
-    }
+    GOTO(_fetched_data, false);
 }
 
 void Cpu::PROC_JR()
 {
-    // TODO: ..
+    char rel = (char)_fetched_data & 0xFF; // handle negative rel jump
+    uint16_t addr = _pc + rel;
+    GOTO(addr, false);
 }
 
 void Cpu::PROC_XOR()
@@ -423,14 +469,73 @@ void Cpu::PROC_XOR()
 void Cpu::PROC_LDH()
 {
     // High ram read/write
-    if(_current_instruction->reg1_type == RegisterType::RT_A)
+    if (_current_instruction->reg1_type == RegisterType::RT_A)
     {
         SetRegister(RegisterType::RT_A, _gb->GetBus().Read(_fetched_data) | 0xFF00);
     }
-    else if(_current_instruction->reg2_type == RegisterType::RT_A)
+    else 
     {
-        _gb->GetBus().Write(_fetched_data | 0xFF00, ReadRegister(RegisterType::RT_A));
+        _gb->GetBus().Write(_memory_dest, _a);
     }
+}
+
+void Cpu::PROC_POP()
+{
+    uint16_t lo = Pop();
+    _gb->Cycle(1);
+
+    uint16_t hi = Pop() << 8;
+    _gb->Cycle(1);
+
+    SetRegister(_current_instruction->reg1_type, hi | lo);
+
+    if (_current_instruction->reg1_type == RegisterType::RT_AF)
+    {
+        SetRegister(_current_instruction->reg1_type, (hi | lo) & 0xFFF0);
+    }
+}
+
+void Cpu::PROC_PUSH()
+{
+    uint16_t val = ReadRegister(_current_instruction->reg1_type);
+    Push16(val);
+    _gb->Cycle(2);
+}
+
+void Cpu::PROC_CALL()
+{
+    GOTO(_fetched_data, true);
+}
+
+void Cpu::PROC_RET()
+{
+    if (_current_instruction->condition_type != CT_NONE)
+    {
+        _gb->Cycle(1);
+    }
+
+    if (CheckCondition())
+    {
+        uint16_t lo = Pop() & 0XFF;
+        _gb->Cycle(1);
+
+        uint16_t hi = (Pop() << 8) & 0xFF00;
+        _gb->Cycle(1);
+
+        _pc = hi | lo;
+        _gb->Cycle(1);
+    }
+}
+
+void Cpu::PROC_RETI()
+{
+    _int_master_enabled = true;
+    PROC_RET();
+}
+
+void Cpu::PROC_RST() 
+{
+    GOTO(_current_instruction->parameter, true);
 }
 
 bool Cpu::Step()
@@ -440,20 +545,20 @@ bool Cpu::Step()
     FetchInstruction();
     FetchData();
 
-    printf("PC: %04X SP: %04X| %3s (%02X %02X %02X) | AF: %02X%02X BC: %02X%02X DE: %02X%02X HL: %02X%02X\n",
-           pc,
-           _sp,
+    printf("PC: %04X SP: %04X| %3s[%02X] %02X %02X) | AF: %02X%02X BC: %02X%02X DE: %02X%02X HL: %02X%02X\n",
+        pc,
+        _sp,
 
-           Instruction::StringLookUp[_current_instruction->type],
-           _current_opcode,
-           _gb->GetBus().Read(pc + 1),
-           _gb->GetBus().Read(pc + 2),
+        Instruction::StringLookUp[_current_instruction->type],
+        _current_opcode,
+        _gb->GetBus().Read(pc + 1),
+        _gb->GetBus().Read(pc + 2),
 
-           _a,_f,
-           _b,_c,
-           _d,_e,
-           _h,_l
-            );
+        _a, _f,
+        _b, _c,
+        _d, _e,
+        _h, _l
+    );
 
     Execute();
 
